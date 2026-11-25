@@ -1,13 +1,26 @@
 #!/usr/bin/env python3
-"""Regenerate the merged/open upstream PR lists in README.md from the GitHub search API.
+"""Regenerate the categorized SGLang-Omni / vLLM-Omni PR list in README.md.
 
-Upstream = PRs authored by USER in repositories USER doesn't own.
-Run by .github/workflows/sync-prs.yml; needs GH_TOKEN for the search API.
+Run daily by .github/workflows/sync-prs.yml; needs GH_TOKEN for the search API.
 """
 import json, os, re, sys, urllib.parse, urllib.request
 
-USER = os.environ.get("PROFILE_USER", "ychu824")
+USER = "ychu824"
+REPOS = ["sgl-project/sglang-omni", "vllm-project/vllm-omni"]
 TOKEN = os.environ.get("GH_TOKEN", "")
+
+# Category, matched against the leading [Tag]s of a PR title (first match wins).
+CATEGORIES = [
+    ("Performance", {"perf"}),
+    ("Serving & realtime", {"realtime", "serving", "scheduler"}),
+    ("Correctness", {"bugfix", "fix"}),
+    ("Benchmarks & CI", {"benchmark", "ci/build", "ci", "test"}),
+]
+OTHER = "Models & sampling"
+# Per-PR overrides when the title tag doesn't tell the story: {number: category}
+OVERRIDES = {}
+# PRs left off the profile.
+EXCLUDE = {2261}
 
 
 def search(q):
@@ -26,40 +39,49 @@ def search(q):
         page += 1
 
 
-def repo(i):
-    return i["repository_url"].split("/repos/", 1)[1]
+def split_title(title):
+    tags = re.findall(r"^\s*((?:\[[^\]]+\]\s*)+)", title)
+    tags = re.findall(r"\[([^\]]+)\]", tags[0]) if tags else []
+    rest = re.sub(r"^\s*(?:\[[^\]]+\]\s*)+", "", title).strip()
+    return tags, rest
 
 
-def esc(t):
-    return t.replace("|", "\\|").replace("[", "\\[").replace("]", "\\]")
+def category(i, tags):
+    if i["number"] in OVERRIDES:
+        return OVERRIDES[i["number"]]
+    low = {t.lower() for t in tags}
+    for name, keys in CATEGORIES:
+        if low & keys:
+            return name
+    return OTHER
 
 
-def block(name, summary, rows, header):
-    body = "\n".join([header, header_sep(header)] + rows) if rows else "_None right now._"
-    return (f"<!-- {name}:START -->\n<details>\n<summary>{summary}</summary>\n\n"
-            f"{body}\n\n</details>\n<!-- {name}:END -->")
+def line(i, tags):
+    _, rest = split_title(i["title"])
+    known = set().union(*(k for _, k in CATEGORIES))
+    models = [t for t in tags if t.lower() not in known]
+    repo = "SGLang-Omni" if "sglang" in i["repository_url"] else "vLLM-Omni"
+    model = f" · {', '.join(models)}" if models else ""
+    rest = rest.replace("|", "\\|")
+    return f"- [{rest}]({i['html_url']}) <sub>{repo}{model}</sub>"
 
 
-def header_sep(header):
-    return "|" + "---|" * (header.count("|") - 1)
+q = f"author:{USER} type:pr is:merged " + " ".join(f"repo:{r}" for r in REPOS)
+merged = sorted((i for i in search(q) if i["number"] not in EXCLUDE), key=lambda i: i["pull_request"]["merged_at"] or "", reverse=True)
 
+groups = {}
+for i in merged:
+    tags, _ = split_title(i["title"])
+    groups.setdefault(category(i, tags), []).append(line(i, tags))
 
-merged = search(f"author:{USER} type:pr is:merged -user:{USER}")
-merged.sort(key=lambda i: i["pull_request"]["merged_at"] or "", reverse=True)
-open_ = search(f"author:{USER} type:pr is:open -user:{USER}")
-
-m_rows = [f"| `{repo(i)}` | [{esc(i['title'])}]({i['html_url']}) | {i['pull_request']['merged_at'][:10]} |" for i in merged]
-o_rows = [f"| `{repo(i)}` | [{esc(i['title'])}]({i['html_url']}) | {'draft' if i.get('draft') else 'in review'} |" for i in open_]
+order = [c for c, _ in CATEGORIES] + [OTHER]
+parts = [f"**{c}**\n\n" + "\n".join(groups[c]) for c in order if c in groups]
+new = "<!-- PRS:START -->\n" + "\n\n".join(parts) + "\n<!-- PRS:END -->"
 
 readme = open("README.md", encoding="utf-8").read()
-for name, summary, rows, header in [
-    ("MERGED", f"All merged upstream PRs ({len(merged)})", m_rows, "| Repo | PR | Merged |"),
-    ("OPEN", f"Open PRs · in review and work in progress ({len(open_)})", o_rows, "| Repo | PR | Status |"),
-]:
-    new = block(name, summary, rows, header)
-    readme, n = re.subn(rf"<!-- {name}:START -->.*?<!-- {name}:END -->", lambda _: new, readme, flags=re.S)
-    if n != 1:
-        sys.exit(f"marker {name} not found")
-
+readme, n = re.subn(r"<!-- PRS:START -->.*?<!-- PRS:END -->", lambda _: new, readme, flags=re.S)
+if n != 1:
+    sys.exit("PRS marker not found")
+readme = re.sub(r"merged PRs: \d+", f"merged PRs: {len(merged)}", readme)
 open("README.md", "w", encoding="utf-8").write(readme)
-print(f"merged={len(merged)} open={len(open_)}")
+print(f"merged={len(merged)} " + " ".join(f"{c}={len(v)}" for c, v in groups.items()))
