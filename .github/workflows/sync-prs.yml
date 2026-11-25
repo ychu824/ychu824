@@ -2,18 +2,23 @@ name: Sync PR lists
 
 on:
   schedule:
-    - cron: "17 13 * * *"   # daily, 05:17 Pacific
+    - cron: "17 13 * * *"   # daily at 13:17 UTC
   workflow_dispatch:
 
 permissions:
   contents: write
+  actions: write   # to keep the schedule enabled
+
+concurrency:
+  group: sync-prs
+  cancel-in-progress: false
 
 jobs:
   sync:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - name: Regenerate PR tables
+      - uses: actions/checkout@v5
+      - name: Regenerate PR list
         env:
           GH_TOKEN: ${{ github.token }}
         run: python3 scripts/sync_prs.py
@@ -24,3 +29,9 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git commit -am "Sync PR lists"
           git push
+      # GitHub disables scheduled workflows after 60 days without repo activity;
+      # re-enabling on every run keeps the schedule alive during quiet stretches.
+      - name: Keep schedule enabled
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh api -X PUT "repos/${{ github.repository }}/actions/workflows/sync-prs.yml/enable"
