@@ -4,7 +4,7 @@ Engineer working on **AI infrastructure**. I contribute to inference serving eng
 
 `inference serving` · `request scheduling & batching` · `GPU latency` · `distributed systems`
 
-![Profile views](https://komarev.com/ghpvc/?username=ychu824&color=555&style=flat-square&label=profile+views)
+![Profile views](https://komarev.com/ghpvc/?username=ychu824&color=grey&style=flat-square&label=profile+views)
 
 ---
 
@@ -46,7 +46,8 @@ Engineer working on **AI infrastructure**. I contribute to inference serving eng
 
 | Project | What it is |
 |---|---|
-| **[TokenTide](https://github.com/ychu824/TokenTide)** | A floating macOS meter for Claude plan limits and Claude Code token usage. Signed, notarized and self-updating. ![downloads](https://img.shields.io/github/downloads/ychu824/TokenTide/total?color=555&label=downloads&style=flat-square) |
+| **[Placelore](https://apps.apple.com/us/app/placelore/id6767613390)** | A private place journal for iPhone. It detects where you spend time and lets you add names, notes and photos, all stored on device. [App Store](https://apps.apple.com/us/app/placelore/id6767613390) · [source](https://github.com/ychu824/Placelore) |
+| **[TokenTide](https://github.com/ychu824/TokenTide)** | A floating macOS meter for Claude plan limits and Claude Code token usage. Signed, notarized and self-updating. ![downloads](https://img.shields.io/github/downloads/ychu824/TokenTide/total?color=grey&label=downloads&style=flat-square) |
 
 ### Background
 
